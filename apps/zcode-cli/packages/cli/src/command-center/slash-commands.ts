@@ -9,6 +9,7 @@ import {
 } from "../command-center-custom.js";
 import { SLASH_COMMAND_HELP_ENTRIES, type SlashCommandHelpEntry } from "./slash-command-help.js";
 import type { SlashCommand } from "./slash-command-types.js";
+import type { CommandCenterSkill } from "./types.js";
 import { splitArgs } from "./utils.js";
 import { isWorkflowModeEnabled } from "../workflow-mode.js";
 
@@ -17,6 +18,11 @@ const WORKFLOW_COMMAND_NAME = "workflow";
 export type SlashCommandSurfaceOptions = {
   /** 缺席不设门（单测、嵌入方）；CLI 入口总会传入解析后的 `--workflow-mode`。 */
   workflowMode?: DynamicWorkflowMode;
+  /**
+   * skills 目录快照（与 `/skill` 列表同源，见 tui-skill-slash-suggestions.md）。
+   * 提供时把 skills 合并进 `/` 建议菜单（对齐 Desktop buildSkillSuggestions）。
+   */
+  skills?: readonly CommandCenterSkill[];
 };
 
 /**
@@ -281,7 +287,59 @@ export function listSlashCommandSuggestions(
       usage: entry.usage,
     })),
     ...listCustomCommandSuggestions(customCommands),
+    ...listSkillSlashCommandSuggestions(options?.skills),
   ];
+}
+
+/** 同名 skill 折叠优先级，对齐 Desktop mapSkillsToMentionItemsForTest（project > system(plugin) > user）。 */
+const SKILL_SCOPE_PRIORITY: Record<string, number> = { project: 0, system: 1, user: 2 };
+
+/**
+ * skills 目录 → `/` 菜单建议（spec: docs/design/v2/tui-skill-slash-suggestions.md）。
+ * 同名折叠 + 字典序；提交经 `submitAs` 落到既有 `/skill <name>` 分发，不新增加载机制。
+ */
+export function listSkillSlashCommandSuggestions(
+  skills?: readonly CommandCenterSkill[],
+): TuiSlashCommandSuggestion[] {
+  if (!skills || skills.length === 0) return [];
+
+  const unique = new Map<string, CommandCenterSkill>();
+  for (const skill of skills) {
+    const key = skill.name.trim().toLowerCase();
+    const current = unique.get(key);
+    if (
+      !current ||
+      (SKILL_SCOPE_PRIORITY[skill.scope] ?? Number.MAX_SAFE_INTEGER) <
+        (SKILL_SCOPE_PRIORITY[current.scope] ?? Number.MAX_SAFE_INTEGER)
+    ) {
+      unique.set(key, skill);
+    }
+  }
+
+  return [...unique.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((skill) => {
+      const aliases = [skill.qualifiedName, skill.pluginName].filter(
+        (alias): alias is string =>
+          typeof alias === "string" && alias.length > 0 && alias !== skill.name,
+      );
+      return {
+        ...(aliases.length > 0 ? { aliases } : {}),
+        name: skill.name,
+        summary: formatSkillSuggestionSummary(skill),
+        submitAs: `/skill ${skill.name}`,
+        usage: `/skill ${skill.name}`,
+      };
+    });
+}
+
+function formatSkillSuggestionSummary(skill: CommandCenterSkill): string {
+  const description = [skill.description, skill.whenToUse]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return `${skill.scope}/${skill.source} · ${description}`;
 }
 
 export function formatSlashCommandHelp(

@@ -22,6 +22,6 @@ export function resolveComposerSubmittedText({
   if (modelOption) return `/model ${modelOptionValue(modelOption)}`;
   if (effortOption) return `/effort ${effortOption.id}`;
   if (modeOption) return `/mode ${modeOption.id}`;
-  if (slashCommand) return `/${slashCommand.name}`;
+  if (slashCommand) return slashCommand.submitAs ?? `/${slashCommand.name}`;
   return submittedValue;
 }

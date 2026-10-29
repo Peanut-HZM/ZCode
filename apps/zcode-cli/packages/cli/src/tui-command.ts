@@ -5,7 +5,7 @@ import { createNodeClipboardImageReader } from "./clipboard-image.js";
 import { createNodeClipboardTextWriter } from "./clipboard-text.js";
 import { listSlashCommandSuggestions } from "./command-center.js";
 import { registerCliShutdownHandlers } from "./shutdown.js";
-import { listCustomCommandsForTui, loadInitialTuiSessionMetadata } from "./tui-command-data.js";
+import { listSkillsForTui, listCustomCommandsForTui, loadInitialTuiSessionMetadata } from "./tui-command-data.js";
 import { createTuiSubmitPrompt } from "./tui-prompt-handler.js";
 import { loadTuiRuntime } from "./tui-runtime-loader.js";
 import { resolveTuiStartupLocale } from "./tui-startup-locale.js";
@@ -64,12 +64,16 @@ export const runTuiCommand = async (
     try {
       return await runTui({
         loadStartupOptions: async () => {
-          const [metadata, customCommands, workspaceGitBranch] = await Promise.all([
+          const [metadata, customCommands, workspaceGitBranch, skills] = await Promise.all([
             loadInitialTuiSessionMetadata(promptHandler),
             listCustomCommandsForTui(deps).catch(() => undefined),
             (deps.resolveWorkspaceGitBranch ?? resolveWorkspaceGitBranch)({
               workspaceDirectory,
             }).catch(() => undefined),
+            // skills 目录快照（与 /skill 列表同源）；失败不阻塞 TUI 启动，仅菜单缺 skills。
+            listSkillsForTui(deps)
+              .then((outcome) => outcome.skills)
+              .catch(() => undefined),
           ]);
           return {
             initialMode: currentCliMode(modeState),
@@ -80,7 +84,7 @@ export const runTuiCommand = async (
             theme: metadata.theme ?? "auto",
             modelOptions: metadata.modelOptions,
             effortOptions: metadata.effortOptions,
-            slashCommands: listSlashCommandSuggestions(customCommands, { workflowMode }),
+            slashCommands: listSlashCommandSuggestions(customCommands, { workflowMode, skills }),
             workspaceGitBranch,
           };
         },

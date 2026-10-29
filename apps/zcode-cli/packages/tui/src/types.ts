@@ -282,6 +282,11 @@ export type TuiSlashCommandSuggestion = {
   name: string;
   summary: string;
   usage: string;
+  /**
+   * 选中该建议后实际提交的文本；缺席回退 `/${name}`。
+   * skill 建议用它把 `/名称` 映射到既有的 `/skill <名称>` 分发路径。
+   */
+  submitAs?: string;
 };
 
 export type TuiModelOption = ZCodeModelOption;

@@ -37,7 +37,9 @@ export function filterSlashCommands(
   return commands.filter(
     (command) =>
       command.name.toLowerCase().includes(query) ||
-      command.aliases?.some((alias) => alias.toLowerCase().includes(query)),
+      command.aliases?.some((alias) => alias.toLowerCase().includes(query)) ||
+      // 摘要对齐 desktop 的关键词搜索（keywords 含描述）；单字符查询只按名称收敛，避免噪声。
+      (query.length >= 2 && command.summary.toLowerCase().includes(query)),
   );
 }
 

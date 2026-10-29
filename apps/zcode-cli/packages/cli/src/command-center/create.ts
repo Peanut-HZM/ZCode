@@ -13,7 +13,7 @@ import { handleMcpCommand } from "./handlers/mcp.js";
 import { handleModeCommand } from "./handlers/mode.js";
 import { handleModelCommand } from "./handlers/model.js";
 import { handlePluginsCommand } from "./handlers/plugins.js";
-import { handleSkillListCommand } from "./handlers/skill.js";
+import { handleSkillListCommand, handleSkillNameFallbackCommand } from "./handlers/skill.js";
 import { handleTargetCommand } from "./handlers/goal.js";
 import { recordSlashCommandInHistory } from "./history.js";
 import { attachCurrentSessionMetadata, normalizeTuiPromptInput } from "./metadata.js";
@@ -66,6 +66,18 @@ export function createCommandCenter(deps: CommandCenterDeps): TuiSubmitPrompt {
       if (customResult) {
         await recordSlashCommandInHistory(deps, promptInput.text, command);
         return customResult;
+      }
+      // skill 兜底：`/名称 [任务]` 命中 skills 目录时按 `/skill <名称>` 语义提交
+      //（spec: docs/design/v2/tui-skill-slash-suggestions.md）。
+      const skillFallback = await handleSkillNameFallbackCommand(
+        deps,
+        command.rawName,
+        command.args,
+        options,
+      );
+      if (skillFallback) {
+        await recordSlashCommandInHistory(deps, promptInput.text, command);
+        return skillFallback;
       }
       const customCommands = await listCustomCommandsForHelp(deps);
       return {
